@@ -1,3 +1,5 @@
+> 非官方定制分支：卡片跳转、启动画面、默认配置与 Android 17 加载说明见 [CUSTOM_BUILD.md](CUSTOM_BUILD.md)。
+
 <div align="center">
     <h1>QFun</h1>
 
