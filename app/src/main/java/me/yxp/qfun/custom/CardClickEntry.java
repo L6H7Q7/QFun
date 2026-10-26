@@ -53,6 +53,7 @@ public final class CardClickEntry implements IXposedHookLoadPackage, IXposedHook
         CardClickSettings.install(CardClickEntry.class.getClassLoader());
         QFunUiCleanup.install(CardClickEntry.class.getClassLoader());
         UiCleanupFeature.install(param.classLoader, CardClickEntry.class.getClassLoader());
+        RedPacketTrial.schedule(CardClickEntry.class.getClassLoader());
         int hooked = 0;
         try {
             Class<?> clickClass = XposedHelpers.findClass(

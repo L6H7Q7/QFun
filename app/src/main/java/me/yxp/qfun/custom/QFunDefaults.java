@@ -29,6 +29,8 @@ public final class QFunDefaults {
         } catch (Throwable error) {
             XposedBridge.log("[QFunDefaults] Feature defaults hook unavailable: " + error);
         }
+    }
+    public static void installRedPacketDefaults(ClassLoader loader) {
         try {
             Class<?> auto = XposedHelpers.findClass("me.yxp.qfun.hook.redpacket.AutoGrabHb", loader);
             for (Method method : auto.getDeclaredMethods()) {
@@ -44,7 +46,7 @@ public final class QFunDefaults {
                                 XposedHelpers.callMethod(config, "getKeywords"),
                                 Collections.singletonList("xxlb"),
                                 XposedHelpers.callMethod(config, "getWhiteList"),
-                                XposedHelpers.callMethod(config, "getTargetTypes")));
+                                RedPacketTrialRules.defaults()));
                     }
                 });
             }
