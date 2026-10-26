@@ -52,6 +52,7 @@ public final class CardClickEntry implements IXposedHookLoadPackage, IXposedHook
         CustomSplashFeature.install(param.classLoader, CardClickEntry.class.getClassLoader(), moduleApkPath);
         CardClickSettings.install(CardClickEntry.class.getClassLoader());
         QFunUiCleanup.install(CardClickEntry.class.getClassLoader());
+        UiCleanupFeature.install(param.classLoader, CardClickEntry.class.getClassLoader());
         int hooked = 0;
         try {
             Class<?> clickClass = XposedHelpers.findClass(

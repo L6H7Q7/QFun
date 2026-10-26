@@ -26,6 +26,7 @@ import java.util.List;
 public final class CardClickSettings {
     private static final String TITLE = "卡片跳转设置";
     private static final String SPLASH_TITLE = "启动画面设置";
+    private static final String UI_TITLE = "界面精简设置";
     private static final String PREFS = "QFun_CardClick";
     private static final String ENABLED = "enabled";
 
@@ -65,19 +66,21 @@ public final class CardClickSettings {
                         if (!(current instanceof List)) return;
                         List<?> items = (List<?>) current;
                         boolean settingsMenu = false;
-                        boolean hasCard = false, hasSplash = false;
+                        boolean hasCard = false, hasSplash = false, hasUi = false;
                         int icon = 0;
                         for (Object item : items) {
                             String title = (String) XposedHelpers.callMethod(item, "getTitle");
                             if (TITLE.equals(title)) hasCard = true;
                             if (SPLASH_TITLE.equals(title)) hasSplash = true;
+                            if (UI_TITLE.equals(title)) hasUi = true;
                             if ("导出配置".equals(title)) settingsMenu = true;
                             icon = (Integer) XposedHelpers.callMethod(item, "getIconRes");
                         }
-                        if (!settingsMenu || (hasCard && hasSplash)) return;
+                        if (!settingsMenu || (hasCard && hasSplash && hasUi)) return;
                         List<Object> updated = new ArrayList<>(items);
-                        for (String title : new String[]{TITLE, SPLASH_TITLE}) {
+                        for (String title : new String[]{TITLE, SPLASH_TITLE, UI_TITLE}) {
                             if ((TITLE.equals(title) && hasCard) || (SPLASH_TITLE.equals(title) && hasSplash)) continue;
+                            if (UI_TITLE.equals(title) && hasUi) continue;
                             Object callback = Proxy.newProxyInstance(function0.getClassLoader(), new Class<?>[]{function0}, (proxy, called, args) -> {
                             switch (called.getName()) {
                                 case "invoke":
@@ -85,7 +88,9 @@ public final class CardClickSettings {
                                         XposedHelpers.findClass("me.yxp.qfun.utils.qq.QQCurrentEnv", loader), "INSTANCE");
                                     Activity activity = (Activity) XposedHelpers.callMethod(env, "getActivity");
                                     if (activity != null && !activity.isFinishing() && !activity.isDestroyed()) {
-                                        if (SPLASH_TITLE.equals(title)) CustomSplashFeature.show(activity); else show(activity);
+                                        if (SPLASH_TITLE.equals(title)) CustomSplashFeature.show(activity);
+                                        else if (UI_TITLE.equals(title)) UiCleanupSettings.show(activity);
+                                        else show(activity);
                                     }
                                     return unit;
                                 case "toString": return "QFunSettings:" + title;
