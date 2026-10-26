@@ -2,6 +2,17 @@
 
 基于 [oneQAQone/QFun](https://github.com/oneQAQone/QFun) 和官方 QFun 1.3.4 模块制作，保留上游作者信息和 GPL-3.0 许可。这是非官方定制分支。
 
+## v5.3.1 / v5.3.2
+
+### v5.3.1 去掉设置页“关于QQ与帮助”
+- 设置页分组由 `NewSettingConfigProvider.f(Context)` 组装；在返回后移除包含 `AboutItemProcessor` 的整组，其他分组不变。
+- 实现：`AboutEntryHide`。
+
+### v5.3.2 更新横幅与 QFun 关于区
+- 屏蔽消息列表顶部“发现QQ新版本”横幅：hook `UpgradeBannerProcessor` 与 `InstallUpgradeBannerProcessor` 的 `initBanner`、`updateBanner`、`onMessage`、`onAccountChanged`。升级弹窗不在本次范围。
+- QFun 设置页跳过 `AboutSection`：“关于”标题、Github/Channel/Group/Donate 链接与版本行都不再显示。
+- 复核模块更新检查与打赏：`SettingViewModel.checkUpdate`、`getShowUpdateDialog`、`getUpdateInfo`、`UpdateManager.checkUpdateSuspend`、`SocialButton(Donate)` 保持屏蔽。
+
 ## 功能
 
 - QQ 9.2.27 单击分享卡片打开对应应用，失败时回退原点击流程；支持 Bilibili、PiliPlus、小红书、酷安、知乎及短链。
