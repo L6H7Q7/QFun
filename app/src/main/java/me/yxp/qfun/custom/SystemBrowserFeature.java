@@ -9,17 +9,22 @@ import android.net.Uri;
 import android.util.Log;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * 点击链接时改用系统默认浏览器打开，不再进入 QQ 内置浏览器。
  *
- * 原理：QQ 打开内置浏览器时会 startActivity 一个 component 名包含
- * QQBrowserActivity、extra 中带 "url" 的 Intent。这里 hook
- * Activity / ContextWrapper 的 startActivity 系列方法，命中后改用
- * ACTION_VIEW 拉起系统默认浏览器，并阻止原 Intent 启动，用户留在原界面。
+ * 原理：QQ 打开内置浏览器时会启动 component 名包含 QQBrowser / *BrowserActivity /
+ * *WebViewActivity 的页面，并带上网址（url extra 或 Intent data）。这里 hook：
+ *   - Activity / ContextWrapper 的 startActivity 系列方法（常规路径）
+ *   - Instrumentation.execStartActivity（Fragment、扫码等绕过 startActivity 的路径）
+ * 命中后改用 ACTION_VIEW 拉起系统默认浏览器，并阻止原页面启动。
  *
  * 思路参考 QAuxiliary 的「去你大爷的QQ浏览器」。
  */
@@ -40,6 +45,9 @@ public final class SystemBrowserFeature {
             "qq-web.cdn-go.cn"
     };
 
+    /** 诊断用：记录出现过的浏览器入口，方便定位漏网场景。 */
+    private static final Set<String> SEEN_CANDIDATES = Collections.synchronizedSet(new HashSet<String>());
+
     private static boolean installed;
 
     public static synchronized void install(ClassLoader loader) {
@@ -56,7 +64,39 @@ public final class SystemBrowserFeature {
         } catch (Throwable error) {
             log("ContextWrapper hook unavailable: " + error);
         }
+        try {
+            hooked += hookInstrumentation(loader);
+        } catch (Throwable error) {
+            log("Instrumentation hook unavailable: " + error);
+        }
         log("System browser hooks installed: " + hooked);
+    }
+
+    /** 兜底：Fragment 等路径会绕过 startActivity 直接走 Instrumentation.execStartActivity。 */
+    private static int hookInstrumentation(ClassLoader loader) {
+        int count = 0;
+        Class<?> instrumentation = XposedHelpers.findClass("android.app.Instrumentation", loader);
+        for (Method method : instrumentation.getDeclaredMethods()) {
+            if (!"execStartActivity".equals(method.getName())) continue;
+            if (java.lang.reflect.Modifier.isNative(method.getModifiers())
+                    || java.lang.reflect.Modifier.isAbstract(method.getModifiers())) continue;
+            try {
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam hook) {
+                        try {
+                            intercept(hook);
+                        } catch (Throwable failure) {
+                            log("execStartActivity intercept failed: " + failure);
+                        }
+                    }
+                });
+                count++;
+            } catch (Throwable error) {
+                log("Skip Instrumentation#" + method.getName() + ": " + error);
+            }
+        }
+        return count;
     }
 
     private static int hookStartActivity(Class<?> clazz) {
@@ -92,12 +132,18 @@ public final class SystemBrowserFeature {
 
         ComponentName component = intent.getComponent();
         if (component == null) return;
-        if (!component.getShortClassName().contains("QQBrowserActivity")) return;
+        if (!isBrowserActivity(component.getShortClassName())) return;
 
-        String url = intent.getStringExtra("url");
-        if (url == null) return;
-        url = url.trim();
-        if (url.isEmpty() || !URL_PATTERN.matcher(url.toLowerCase(Locale.ROOT)).matches()) return;
+        String url = extractUrl(intent);
+        if (url == null || url.isEmpty()) return;
+        if (!URL_PATTERN.matcher(url.toLowerCase(Locale.ROOT)).matches()) return;
+
+        // 诊断：记录所有浏览器入口，即使后续不拦截也能看到真实组件。
+        String key = component.getShortClassName() + "|" + (url.length() > 80 ? url.substring(0, 80) : url);
+        if (SEEN_CANDIDATES.add(key)) {
+            log("browser candidate: " + key);
+        }
+
         if (isInternalUrl(url)) return;
         if (!(hook.thisObject instanceof Context)) return;
 
@@ -111,11 +157,32 @@ public final class SystemBrowserFeature {
             context.startActivity(open);
             // 阻止打开 QQ 内置浏览器，让用户留在原界面。
             hook.setResult(null);
-            log("Opened in system browser: " + url);
+            log("Opened in system browser (" + component.getShortClassName() + "): " + url);
         } catch (Throwable failure) {
             // 失败时放行原逻辑，退回 QQ 内置浏览器，不打断用户。
             log("Fallback to internal browser: " + failure);
         }
+    }
+
+    /**
+     * 内置浏览器入口的类名，覆盖 QQ 的各种网页容器：
+     * QQBrowserActivity、QQBrowserDelegationActivity、PublicAccountBrowserImpl（扫码/公众号）、
+     * 以及其它 *BrowserActivity / *WebViewActivity。
+     */
+    private static boolean isBrowserActivity(String shortClassName) {
+        if (shortClassName == null) return false;
+        return shortClassName.contains("Browser")
+                || shortClassName.contains("WebViewActivity");
+    }
+
+    private static String extractUrl(Intent intent) {
+        String url = intent.getStringExtra("url");
+        if (url == null || url.isEmpty()) url = intent.getStringExtra("arg_url");
+        if (url == null || url.isEmpty()) url = intent.getStringExtra("url_str");
+        if ((url == null || url.isEmpty()) && intent.getData() != null) {
+            url = intent.getData().toString();
+        }
+        return url == null ? null : url.trim();
     }
 
     private static Intent findIntent(Object[] args) {
