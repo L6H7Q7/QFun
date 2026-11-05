@@ -101,6 +101,8 @@ public final class CardClickEntry implements IXposedHookLoadPackage, IXposedHook
             log("Ark fallback hook unavailable: " + failure);
         }
         log("QQ 9.2.27 native card click hooks installed: " + hooked);
+        SystemBrowserFeature.install(param.classLoader);
+        UpgradeDialogHide.install(param.classLoader);
     }
 
     private static void intercept(XC_MethodHook.MethodHookParam hook, Activity activity,
